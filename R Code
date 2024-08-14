@@ -1,0 +1,47 @@
+# Load necessary libraries
+library(raster)
+library(sf)
+library(sp)
+
+# Define the file paths and names
+dsm_file <- "C:/Users/DELL/Desktop/Thesis/DSM12.tif"
+dtm_file <- "C:/Users/DELL/Desktop/Thesis/DTM12.tif"
+output_file <- "tree_heights.tif"
+
+# Read in the DSM and DTM files
+dsm <- raster(dsm_file)
+dtm <- raster(dtm_file)
+
+# Calculate the Canopy Height Model (CHM)
+chm <- dsm - dtm
+
+# Apply a local maxima filter to identify tree tops
+tree_tops <- focal(chm, w=matrix(1, nrow=5, ncol=5), fun=max)
+
+# Calculate the height of each tree
+tree_heights <- tree_tops - chm
+
+# Identify individual trees using a threshold value
+tree_threshold <- 2 # adjust this value to separate individual trees
+tree_mask <- tree_heights > tree_threshold
+
+# Create a data frame to store the tree heights
+tree_values <- as.matrix(tree_heights)
+tree_df <- data.frame(tree_height = as.vector(tree_values))
+
+# Create a SpatialPixelsDataFrame to store the tree heights
+tree_spdf <- SpatialPixelsDataFrame(tree_heights, tree_df)
+
+# Convert the tree mask to a SpatialPolygons object
+tree_polygons <- rasterToPolygons(tree_mask, fun=function(x) x>0)
+
+# Add the tree heights to the SpatialPolygons object
+tree_polygons@data <- data.frame(tree_height=tree_spdf@data$tree_heights[tree_mask])
+
+# Write the tree heights to a new raster file
+writeRaster(tree_heights, output_file, "GTiff")
+
+# Plot the results
+plot(tree_polygons, col="green", border="black", lwd=2)
+plot(tree_spdf, add=TRUE, col="blue", pch=19)
+legend("topleft", legend=c("Tree Tops", "Tree Heights"), col=c("green", "blue"), pch=c(15, 19), bty="n")
